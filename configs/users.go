@@ -102,3 +102,15 @@ func (c *Configs) GetUsers() ([]int) {
 	c.ulock.RUnlock()
 	return uids
 }
+
+func (c *Configs) CreateUser(uid int) {
+	c.ulock.RLock()
+	_, ok := c.contents.Users[uid]
+	c.ulock.RUnlock()
+	if !ok {
+		c.ulock.Lock()
+		c.contents.Users[uid] = make([]string, 0)
+		c.ulock.Unlock()
+		c.Store()
+	}
+}

@@ -3,7 +3,7 @@ package bot
 import (
 	"gopkg.in/tucnak/telebot.v2"
 	"telegram_webcomic_bot/configs"
-	"fmt"
+	"telegram_webcomic_bot/util"
 )
 
 func help(bot *telebot.Bot, m *telebot.Message) {
@@ -16,26 +16,6 @@ func help(bot *telebot.Bot, m *telebot.Message) {
 	bot.Send(m.Sender, msg)
 }
 
-func handleSetupBtn(bot *telebot.Bot,
-		m *telebot.Message,
-		btn *telebot.InlineButton,
-		kbd [][]telebot.InlineButton,
-		source string) func(c *telebot.Callback) {
-	return func(c *telebot.Callback) {
-		conf := configs.GetConfigs()
-		enabled := conf.UserToggleSource(m.Sender.ID, source)
-		if enabled {
-			btn.Text = fmt.Sprintf("%s (enabled)", source)
-		} else {
-			btn.Text = fmt.Sprintf("%s (disabled)", source)
-		}
-		bot.Edit(c.Message, c.Message.Text, &telebot.ReplyMarkup{
-			InlineKeyboard: kbd,
-		})
-		bot.Respond(c, &telebot.CallbackResponse{})
-	}
-}
-
 func setup(bot *telebot.Bot, m *telebot.Message) {
 	if !m.Private() {
 		return
@@ -44,23 +24,7 @@ func setup(bot *telebot.Bot, m *telebot.Message) {
 	conf := configs.GetConfigs()
 	sources := conf.GetFeedSources()
 
-	inlineKeys := make([][]telebot.InlineButton, len(sources))
-	for i, s := range(sources) {
-		var text string
-		if conf.UserSourceEnabled(m.Sender.ID, s) {
-			text = fmt.Sprintf("%s (enabled)", s)
-		} else {
-			text = fmt.Sprintf("%s (disabled)", s)
-		}
-		btn := telebot.InlineButton {
-			Unique: s,
-			Text: text,
-		}
-		inlineKeys[i] = []telebot.InlineButton{
-			btn,
-		}
-		bot.Handle(&btn, handleSetupBtn(bot, m, &inlineKeys[i][0], inlineKeys, s))
-	}
+	inlineKeys := util.CreateInlineKbd(bot, m.Sender.ID, sources)
 
 	if len(sources) > 0 {
 		bot.Send(m.Sender, "These are the available comics:", &telebot.ReplyMarkup{
@@ -77,6 +41,7 @@ func start(bot *telebot.Bot, m *telebot.Message) {
 	_, ok := conf.GetUser(m.Sender.ID)
 	help(bot, m)
 	if !ok {
+		conf.CreateUser(m.Sender.ID)
 		bot.Send(m.Sender, "First you need to set some comics to follow")
 		setup(bot, m)
 	}

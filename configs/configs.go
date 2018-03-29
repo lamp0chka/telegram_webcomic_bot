@@ -18,32 +18,51 @@ type innerConfigs struct {
 type Configs struct {
 	ulock, flock sync.RWMutex
 	contents innerConfigs
+	newFeeds []string
 }
 
 var defaultConfigFile = "configs.json"
 var activeConfigs *Configs = nil
 
-func (c *Configs) Store() error {
+func lateStore(c *Configs, ch chan error) {
+	data, err := c.Dump()
+	if err == nil {
+		err = ioutil.WriteFile(defaultConfigFile, data, 0600)
+	}
+
+	if err != nil {
+		log.Printf("Config Store Error: %s", err.Error())
+	}
+	ch <- err
+}
+
+func (c *Configs) Dump() ([]byte, error) {
 	c.ulock.Lock()
 	c.flock.Lock()
 	data, err := json.MarshalIndent(c.contents, "", "\t")
 	c.flock.Unlock()
 	c.ulock.Unlock()
-	if err != nil {
-		return err
-	}
+	return data, err
+}
 
-	return ioutil.WriteFile(defaultConfigFile, data, 0600)
+func (c *Configs) Store() chan error {
+	out := make(chan error)
+	go lateStore(c, out)
+	return out
 }
 
 func getDefauktConfigs() *Configs {
-	return &Configs{}
+	return &Configs{
+		contents: innerConfigs{"", make(map[int][]string), make(map[string]time.Time)},
+		newFeeds: make([]string, 0),
+	}
 }
 
 func GetConfigs() *Configs {
 	var err error = nil
+	var data []byte
 	if activeConfigs == nil {
-		data, err := ioutil.ReadFile(defaultConfigFile)
+		data, err = ioutil.ReadFile(defaultConfigFile)
 		if err == nil {
 			var configs innerConfigs
 			err = json.Unmarshal(data, &configs)
@@ -52,8 +71,8 @@ func GetConfigs() *Configs {
 			}
 		} else if os.IsNotExist(err) {
 			activeConfigs = getDefauktConfigs()
+			err = <- activeConfigs.Store()
 		}
-		err = activeConfigs.Store()
 	}
 	if err != nil {
 		log.Fatalf("Error reading configurations: %s\n", err.Error())

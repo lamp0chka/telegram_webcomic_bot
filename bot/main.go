@@ -3,7 +3,7 @@ package bot
 import (
 	"telegram_webcomic_bot/configs"
 	"log"
-	tb "gopkg.in/tucnak/telebot.v2"
+	"gopkg.in/tucnak/telebot.v2"
 	"time"
 )
 
@@ -15,9 +15,9 @@ func StartTelegramBot() {
 
 	log.Print("Initializing telegram bot...")
 
-	b, err := tb.NewBot(tb.Settings{
+	b, err := telebot.NewBot(telebot.Settings{
 		Token: config.GetToken(),
-		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 		Reporter: func(e error) {
 			log.Printf("Telegram Bot Error: %s\n", e.Error())
 		},
@@ -29,6 +29,10 @@ func StartTelegramBot() {
 	log.Print("Registering command handlers...")
 
 	setupCommands(b)
+
+	log.Print("Starting prediodic jobs...")
+
+	startTasks(b)
 
 	log.Print("Start Telegram bot.")
 

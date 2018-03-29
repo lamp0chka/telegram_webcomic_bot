@@ -5,7 +5,13 @@ import (
 )
 
 func (c *Configs) UpdateFeed(name string, updateTime time.Time) {
+	c.flock.RLock()
+	_, ok := c.contents.FeedUpdates[name]
+	c.flock.RUnlock()
 	c.flock.Lock()
+	if !ok {
+		c.newFeeds = append(c.newFeeds, name)
+	}
 	c.contents.FeedUpdates[name] = updateTime
 	c.flock.Unlock()
 	c.Store()
@@ -39,4 +45,17 @@ func (c *Configs) IsUpToDate(name string, lastEntry time.Time) (bool) {
 	}
 
 	return uptodate
+}
+
+func (c *Configs) GetNewFeedSources() ([]string) {
+	c.flock.RLock()
+	s := c.newFeeds[:]
+	c.flock.RUnlock()
+	return s
+}
+
+func (c *Configs) ClearNewFeedSources() {
+	c.flock.Lock()
+	c.newFeeds = c.newFeeds[:0]
+	c.flock.Unlock()
 }
