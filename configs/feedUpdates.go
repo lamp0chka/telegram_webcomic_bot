@@ -4,17 +4,34 @@ import (
 	"time"
 )
 
-func (c *Configs) UpdateFeed(url string, updateTime time.Time) {
-	c.FeedUpdates[url] = updateTime
+func (c *Configs) UpdateFeed(name string, updateTime time.Time) {
+	c.flock.Lock()
+	c.contents.FeedUpdates[name] = updateTime
+	c.flock.Unlock()
+	c.Store()
 }
 
-func (c *Configs) GetFeed(url string) (time.Time, bool) {
-	t, ok := c.FeedUpdates[url]
+func (c *Configs) GetFeed(name string) (time.Time, bool) {
+	c.flock.RLock()
+	t, ok := c.contents.FeedUpdates[name]
+	c.flock.RUnlock()
 	return t, ok
 }
 
-func (c *Configs) IsUpToDate(url string, lastEntry time.Time) (bool) {
-	t, ok := c.GetFeed(url)
+func (c *Configs) GetFeedSources() ([]string) {
+	c.flock.RLock()
+	srcs := make([]string, len(c.contents.FeedUpdates))
+	i := 0
+	for f, _ := range c.contents.FeedUpdates {
+		srcs[i] = f
+		i++
+	}
+	c.flock.RUnlock()
+	return srcs
+}
+
+func (c *Configs) IsUpToDate(name string, lastEntry time.Time) (bool) {
+	t, ok := c.GetFeed(name)
 
 	uptodate := !ok
 	if ok {

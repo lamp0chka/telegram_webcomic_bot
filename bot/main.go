@@ -9,15 +9,18 @@ import (
 
 func StartTelegramBot() {
 	config := configs.GetConfigs()
-	if len(config.Token) <= 0 {
+	if len(config.GetToken()) <= 0 {
 		log.Fatal("Missing Telegram Token, please edit config.json file first!")
 	}
 
 	log.Print("Initializing telegram bot...")
 
 	b, err := tb.NewBot(tb.Settings{
-		Token: config.Token,
+		Token: config.GetToken(),
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+		Reporter: func(e error) {
+			log.Printf("Telegram Bot Error: %s\n", e.Error())
+		},
 	})
 	if err != nil {
 		log.Fatal(err)
