@@ -53,7 +53,7 @@ func msg_handler(bot *telebot.Bot, f func(bot *telebot.Bot, m *telebot.Message))
 	}
 }
 
-func setupCommands(bot *telebot.Bot) {
+func SetupCommands(bot *telebot.Bot) {
 	bot.Handle("/start", msg_handler(bot, start))
 	bot.Handle("/help", msg_handler(bot, help))
 	bot.Handle("/setup", msg_handler(bot, setup))

@@ -162,6 +162,9 @@ func updateFeeds(bot *telebot.Bot) {
 				notifyComics(bot, f.name, comics)
 				conf.UpdateFeed(f.name, lastItemTime)
 			}
+		} else {
+			log.Printf("no users interested in feed %s, skipping", f.name)
+			conf.UpdateFeed(f.name, time.Now())
 		}
 	}
 

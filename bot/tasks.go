@@ -6,7 +6,7 @@ import (
 )
 
 
-func startTasks(bot *telebot.Bot) {
+func StartTasks(bot *telebot.Bot) {
 
 	go sources.KeepFeedsUpdated(bot)
 
