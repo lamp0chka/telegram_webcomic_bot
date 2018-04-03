@@ -91,7 +91,22 @@ func (c *Configs) GetUser(uid int) ([]string, bool) {
 	return u, ok
 }
 
-func (c *Configs) GetUsers() ([]int) {
+func (c *Configs) GetUsers(source string) ([]int) {
+	c.ulock.RLock()
+	uids := make([]int, 0, len(c.contents.Users))
+	for u, list := range c.contents.Users {
+		for _, s := range list {
+			if source == s {
+				uids = append(uids, u)
+				break
+			}
+		}
+	}
+	c.ulock.RUnlock()
+	return uids
+}
+
+func (c *Configs) GetAllUsers() ([]int) {
 	c.ulock.RLock()
 	uids := make([]int, len(c.contents.Users))
 	i := 0

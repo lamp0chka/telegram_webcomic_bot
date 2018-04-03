@@ -36,15 +36,15 @@ func (c *Configs) GetFeedSources() ([]string) {
 	return srcs
 }
 
-func (c *Configs) IsUpToDate(name string, lastEntry time.Time) (bool) {
+func (c *Configs) IsItemNew(name string, itemTime time.Time) (bool) {
 	t, ok := c.GetFeed(name)
 
-	uptodate := !ok
+	newer := !ok
 	if ok {
-		uptodate = !(t.Before(lastEntry))
+		newer = t.Before(itemTime)
 	}
 
-	return uptodate
+	return newer
 }
 
 func (c *Configs) GetNewFeedSources() ([]string) {
