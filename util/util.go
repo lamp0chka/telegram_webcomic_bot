@@ -4,7 +4,10 @@ import (
 	"gopkg.in/tucnak/telebot.v2"
 	"fmt"
 	"telegram_webcomic_bot/configs"
+	"regexp"
 )
+
+var uniqueClean = regexp.MustCompile("[^0-9a-zA-Z_-]")
 
 func handleSetupBtn(bot *telebot.Bot,
 		dst int,
@@ -37,7 +40,7 @@ func CreateInlineKbd(bot *telebot.Bot, dst int, sources []string) ([][]telebot.I
 			text = fmt.Sprintf("%s (disabled)", s)
 		}
 		btn := telebot.InlineButton {
-			Unique: s,
+			Unique: uniqueClean.ReplaceAllString(s, "_"),
 			Text: text,
 		}
 		inlineKeys[i] = []telebot.InlineButton{
