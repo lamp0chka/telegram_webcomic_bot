@@ -16,10 +16,15 @@ func scrapeDilbert(item *gofeed.Item, src feedSrc) ([]comicUpdate, error) {
 		comic = item.Link
 	}
 
+	title := gq.Find(".comic-title-name").First().Text()
+	if len(title) <= 0 {
+		title = item.Title
+	}
+
 	c := make([]comicUpdate, 1)
 	c[0] = comicUpdate{
 				source: src.name,
-				title: item.Title,
+				title: title,
 				url: comic,
 			}
 	return c, nil
