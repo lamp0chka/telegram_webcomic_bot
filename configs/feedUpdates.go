@@ -59,3 +59,17 @@ func (c *Configs) ClearNewFeedSources() {
 	c.newFeeds = c.newFeeds[:0]
 	c.flock.Unlock()
 }
+
+func (c *Configs) StoreLastItem(source, item string) {
+	c.flock.Lock()
+	c.contents.LastItem[source] = item
+	c.flock.Unlock()
+	c.Store()
+}
+
+func (c *Configs) GetLastItem(source string) (string, bool) {
+	c.flock.RLock()
+	item, ok := c.contents.LastItem[source]
+	c.flock.RUnlock()
+	return item, ok
+}

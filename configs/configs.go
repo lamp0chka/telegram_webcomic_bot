@@ -13,6 +13,7 @@ type innerConfigs struct {
 	Token string `json:"telegram_token"`
 	Users map[int][]string `json:"users"`
 	FeedUpdates map[string]time.Time `json:"feed_updates"`
+	LastItem map[string]string `json:"last_item"`
 }
 
 type Configs struct {
@@ -51,9 +52,13 @@ func (c *Configs) Store() chan error {
 	return out
 }
 
+func getEmptyInnerConfigs() innerConfigs {
+	return innerConfigs{"", make(map[int][]string), make(map[string]time.Time), make(map[string]string)}
+}
+
 func getDefauktConfigs() *Configs {
 	return &Configs{
-		contents: innerConfigs{"", make(map[int][]string), make(map[string]time.Time)},
+		contents: getEmptyInnerConfigs(),
 		newFeeds: make([]string, 0),
 	}
 }
@@ -64,7 +69,8 @@ func GetConfigs() *Configs {
 	if activeConfigs == nil {
 		data, err = ioutil.ReadFile(defaultConfigFile)
 		if err == nil {
-			var configs innerConfigs
+			// get a fully initialized struct to avoid errors on missing maps when updating configs
+			var configs = getEmptyInnerConfigs()
 			err = json.Unmarshal(data, &configs)
 			if err == nil {
 				activeConfigs = &Configs{contents:configs}

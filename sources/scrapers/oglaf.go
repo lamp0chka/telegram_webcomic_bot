@@ -1,4 +1,4 @@
-package sources
+package scrapers
 
 import (
 	"github.com/mmcdole/gofeed"
@@ -8,7 +8,11 @@ import (
 	"net/url"
 )
 
-func getOglafStripAndNext(url string) (*comicUpdate, string, error) {
+// Oglaf has age check cookie and some comics span across multiple pages, but this information can only be desumed
+// from the comic webpage, the feed only contains the link to the page, so we first need to get the comic page
+// passing the age confirmation cookie, scrape the page to get the comic url and search for the "next page" button,
+// if the button is present inform the main scraper function that it has to load another comic page
+func getOglafStripAndNext(url string) (*ComicUpdate, string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, "", err
@@ -40,16 +44,16 @@ func getOglafStripAndNext(url string) (*comicUpdate, string, error) {
 	nextPage := gq.Find("#nx").First().Parent()
 	np, _ := nextPage.Attr("href")
 
-	return &comicUpdate{
-		url: link,
-		alt: alt,
+	return &ComicUpdate{
+		Url: link,
+		Alt: alt,
 	}, np, nil
 }
 
-func scrapeOglaf(item *gofeed.Item, src feedSrc) ([]comicUpdate, error) {
-	c := make([]comicUpdate, 0)
+func ScrapeOglaf(item *gofeed.Item, src string) ([]ComicUpdate, error) {
+	c := make([]ComicUpdate, 0)
 
-	var comic *comicUpdate
+	var comic *ComicUpdate
 	var err error
 	link := item.Link
 	nl := link
@@ -60,8 +64,8 @@ func scrapeOglaf(item *gofeed.Item, src feedSrc) ([]comicUpdate, error) {
 			return nil, err
 		}
 
-		comic.title = item.Title
-		comic.source = src.name
+		comic.Title = item.Title
+		comic.Source = src
 
 		c = append(c, *comic)
 

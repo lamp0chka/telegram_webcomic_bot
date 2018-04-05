@@ -6,115 +6,54 @@ import (
 	"log"
 	"telegram_webcomic_bot/configs"
 	"github.com/mmcdole/gofeed"
-	"runtime/debug"
-	"fmt"
-	"sort"
-	"telegram_webcomic_bot/util"
+	"telegram_webcomic_bot/sources/scrapers"
 )
 
-type comicUpdate struct {
-	source string
-	title string
-	url string
-	alt string
-	updated time.Time
-}
-
-func (u *comicUpdate) send(bot *telebot.Bot, uid int64) {
-	bot.Send(
-		&telebot.Chat{ID: uid},
-		fmt.Sprintf("%s\n<a href=\"%s\">%s</a>", u.source, u.url, u.title),
-		telebot.ModeHTML,
-	)
-	if len(u.alt) > 0 {
-		bot.Send(
-			&telebot.Chat{ID: uid},
-			u.alt,
-		)
-	}
-}
-
-type feedSrc struct {
-	url string
-	name string
-	scrapeTime func(*gofeed.Item)(time.Time, error)
-	scrapeContent func(*gofeed.Item, feedSrc)([]comicUpdate, error)
-}
-
-func timeParserUpdated(timespec string) (func(*gofeed.Item)(time.Time, error)){
-	return func(item *gofeed.Item) (time.Time, error){
-		return time.Parse(timespec, item.Updated)
-	}
-}
-
-func timeParserPublished(timespec string) (func(*gofeed.Item)(time.Time, error)){
-	return func(item *gofeed.Item) (time.Time, error){
-		return time.Parse(timespec, item.Published)
-	}
-}
-
-func parseError(source string, err error) {
-	log.Printf("Error parsing %s: %s", source, err.Error())
-	debug.PrintStack()
-}
+// new comics must be added to this array, make sure the "name" field is unique
 
 var feedScrapers = []feedSrc{
 	{
 		"http://dilbert.com/feed",
 		"Dilbert",
 		timeParserUpdated(time.RFC3339),
-		scrapeDilbert,
+		scrapers.ScrapeDilbert,
 	},
 	{
 		"https://www.xkcd.com/rss.xml",
 		"xkcd",
 		timeParserPublished(time.RFC1123Z),
-		scrapeXkcd,
+		scrapers.ScrapeXkcd,
 	},
 	{
 		"https://what-if.xkcd.com/feed.atom",
 		"What if?",
 		timeParserPublished(time.RFC3339),
-		scrapeXkcdWhatIf,
+		scrapers.ScrapeXkcdWhatIf,
 	},
 	{
 		"https://www.oglaf.com/feeds/rss/",
 		"Oglaf",
 		timeParserPublished(time.RFC1123Z),
-		scrapeOglaf,
+		scrapers.ScrapeOglaf,
 	},
 	{
 		"http://www.menagea3.net/comic.rss",
 		"Ma3",
 		timeParserPublished(time.RFC1123Z),
-		scrapeMa3,
+		scrapers.ScrapeMa3,
 	},
-}
-
-func notifyComics(bot *telebot.Bot, source string, comics []comicUpdate) {
-	conf := configs.GetConfigs()
-
-	sort.Slice(comics, func(i, j int) bool {
-		return comics[i].updated.Before(comics[j].updated)
-	})
-
-	for _, id := range conf.GetUsers(source) {
-		uid := int64(id)
-		for _, c := range comics {
-			c.send(bot, uid)
-		}
-	}
-}
-
-func notifyNewSources(bot *telebot.Bot, sources []string) {
-	conf := configs.GetConfigs()
-
-	for _, id := range conf.GetAllUsers() {
-		kbd := util.CreateInlineKbd(bot, id, sources)
-		bot.Send(&telebot.Chat{ID: int64(id)}, "New webomics available!", &telebot.ReplyMarkup{
-			InlineKeyboard: kbd,
-		})
-	}
+	{
+		"http://www.stickydillybuns.com/comic.rss",
+		"SDB",
+		timeParserPublished(time.RFC1123Z),
+		scrapers.ScrapeMa3,
+	},
+	{
+		"http://www.giantitp.com/comics/oots.rss",
+		"OotS",
+		scrapers.TimeParserOots,
+		scrapers.ScrapeOots,
+	},
 }
 
 func updateFeeds(bot *telebot.Bot) {
@@ -122,49 +61,61 @@ func updateFeeds(bot *telebot.Bot) {
 	fp := gofeed.NewParser()
 
 	for _, f := range(feedScrapers) {
-		if len(conf.GetUsers(f.name)) > 0 {
-			feed, err := fp.ParseURL(f.url)
+		feed, err := fp.ParseURL(f.url)
+		if err != nil {
+			parseError(f.name, err)
+			continue
+		}
+
+		var lastItemTime time.Time
+		var lastItemId string
+		var comics []scrapers.ComicUpdate
+
+		// the heavy scraping routines and some memory usage are avoided if no users are waiting for
+		// updates on this comic, only the update times are kept up to date
+		hasReaders := len(conf.GetUsers(f.name)) > 0
+		hasUpdates := false
+
+		if hasReaders {
+			comics = make([]scrapers.ComicUpdate, 0, len(feed.Items))
+		}
+
+		for _, item := range(feed.Items){
+			updated, item_id, err := f.scrapeTime(item, feed, f.name)
 			if err != nil {
 				parseError(f.name, err)
 				continue
 			}
 
-			comics := make([]comicUpdate, 0, len(feed.Items))
-			var lastItemTime time.Time
+			if lastItemTime.Before(updated) {
+				lastItemTime = updated
+				lastItemId = item_id
+				hasUpdates = true
+			}
 
-			for _, item := range(feed.Items){
-				updated, err := f.scrapeTime(item)
+			if hasReaders && conf.IsItemNew(f.name, updated) {
+				c, err := f.scrapeContent(item, f.name)
 				if err != nil {
 					parseError(f.name, err)
 					continue
 				}
 
-				if lastItemTime.Before(updated) {
-					lastItemTime = updated
+				for i := range(c){
+					c[i].Updated = updated
 				}
 
-				if conf.IsItemNew(f.name, updated) {
-					c, err := f.scrapeContent(item, f)
-					if err != nil {
-						parseError(f.name, err)
-						continue
-					}
-
-					for i := range(c){
-						c[i].updated = updated
-					}
-
-					comics = append(comics, c...)
-				}
+				comics = append(comics, c...)
 			}
+		}
 
-			if len(comics) > 0 {
+		if hasUpdates {
+			if hasReaders {
 				notifyComics(bot, f.name, comics)
-				conf.UpdateFeed(f.name, lastItemTime)
 			}
-		} else {
-			log.Printf("no users interested in feed %s, skipping", f.name)
-			conf.UpdateFeed(f.name, time.Now())
+			if len(lastItemId) > 0 {
+				conf.StoreLastItem(f.name, lastItemId)
+			}
+			conf.UpdateFeed(f.name, lastItemTime)
 		}
 	}
 
