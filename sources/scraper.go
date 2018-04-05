@@ -119,7 +119,7 @@ func updateFeeds(bot *telebot.Bot) {
 		}
 	}
 
-	newSources := conf.GetNewFeedSources()
+	newSources := conf.PopNewFeedSources()
 	if len(newSources) > 0 {
 		notifyNewSources(bot, newSources)
 	}
